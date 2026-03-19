@@ -1,0 +1,40 @@
+name: AI Daily Digest
+
+on:
+  # 16:00 UTC = 12:00 PM EDT (夏令时, 3月-11月)
+  # 17:00 UTC = 12:00 PM EST (冬令时, 11月-3月)
+  schedule:
+    - cron: '0 16 * * *'
+    - cron: '0 17 * * *'
+  workflow_dispatch: # 允许手动触发测试
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check Eastern Time & Send Digest
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: |
+          ET_HOUR=$(TZ=America/New_York date +%H)
+          echo "Current Eastern hour: $ET_HOUR"
+          if [ "$ET_HOUR" = "12" ]; then
+            echo "It's noon Eastern — running digest..."
+            node digest.js
+          else
+            echo "Not noon Eastern (hour=$ET_HOUR), skipping."
+          fi
