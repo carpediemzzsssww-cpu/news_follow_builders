@@ -29,11 +29,12 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           ET_HOUR=$(TZ=America/New_York date +%H)
-          echo "Current Eastern hour: $ET_HOUR"
-          if [ "$ET_HOUR" = "12" ]; then
-            echo "It's noon Eastern — running digest..."
+          echo "Current Eastern hour: $ET_HOUR, event: $EVENT_NAME"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ "$ET_HOUR" = "12" ]; then
+            echo "Running digest..."
             node digest.js
           else
             echo "Not noon Eastern (hour=$ET_HOUR), skipping."
