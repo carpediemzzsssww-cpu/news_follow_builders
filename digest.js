@@ -77,7 +77,7 @@ For each episode: topic, 3-4 key insights, main takeaway.
 ### Key Takeaways
 3-5 bullet points of the most actionable things to know today.
 
-Write in English. Be concise and direct. Total: 500-800 words. Format in clean Markdown.`;
+Write in bilingual format (中英双语): for each section, write the English version first, immediately followed by the Chinese translation. Interleave them naturally section by section, not as a full English block then full Chinese block. Be concise and direct. Total: 600-900 words. Format in clean Markdown.`;
 }
 
 async function generateDigest(feedX, feedPodcasts) {
