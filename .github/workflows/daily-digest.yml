@@ -1,11 +1,10 @@
 name: AI Daily Digest
 
 on:
-  # 16:00 UTC = 12:00 PM EDT (夏令时, 3月-11月)
-  # 17:00 UTC = 12:00 PM EST (冬令时, 11月-3月)
+  # 09:00 UTC = 17:00 GMT+8（下班前送达）
+  # 数据源约 08:00 UTC 更新，留 1 小时缓冲
   schedule:
-    - cron: '0 16 * * *'
-    - cron: '0 17 * * *'
+    - cron: '0 9 * * *'
   workflow_dispatch: # 允许手动触发测试
 
 jobs:
@@ -24,18 +23,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Check Eastern Time & Send Digest
+      - name: Send Digest
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          ET_HOUR=$(TZ=America/New_York date +%H)
-          echo "Current Eastern hour: $ET_HOUR, event: $EVENT_NAME"
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ "$ET_HOUR" = "12" ]; then
-            echo "Running digest..."
-            node digest.js
-          else
-            echo "Not noon Eastern (hour=$ET_HOUR), skipping."
-          fi
+        run: node digest.js
