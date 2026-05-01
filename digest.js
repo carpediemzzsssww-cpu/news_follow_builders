@@ -53,7 +53,25 @@ function buildPrompt(feedX, feedPodcasts) {
       }).join('\n\n---\n\n')
     : 'No new episodes in the last 72 hours.';
 
-  return `You are an AI news curator. Today is ${today}. Create a concise daily digest for an AI practitioner.
+  return `Today is ${today}. Create a daily digest for an AI practitioner.
+
+## CRITICAL OUTPUT FORMAT — BILINGUAL (中英双语)
+
+Every section MUST contain BOTH English and Chinese. After each English paragraph, immediately write the Chinese translation. Do NOT write a full English block followed by a full Chinese block — interleave them paragraph by paragraph.
+
+Example of correct format:
+
+### Today's Highlights
+The big theme today is the maturation of agent infrastructure...
+今天的核心主题是 agent 基础设施的成熟化……
+
+### Builder Updates
+**Sam Altman** (@sama): Announced the rollout of GPT-5.5...
+**Sam Altman** (@sama)：宣布 GPT-5.5 向关键网络防御者推出……
+
+If any section is missing the Chinese translation, the output is INVALID. This is the most important rule.
+
+---
 
 ## TWEETS FROM AI BUILDERS (last 24 hours)
 ${tweetsSection}
@@ -63,29 +81,35 @@ ${podcastsSection}
 
 ---
 
-Write a structured digest with these sections:
+Structure the digest with these four sections (each in 中英双语 as shown above):
 
-### Today's Highlights
+### Today's Highlights / 今日重点
 3-4 sentences on the most important themes.
 
-### Builder Updates
+### Builder Updates / Builder 动态
 For each builder with substantive content (skip trivial tweets), write 2-3 sentences capturing their key insight. Include a direct quote where impactful. Skip builders with no meaningful content.
 
-### Podcast Recap
+### Podcast Recap / 播客回顾
 For each episode: topic, 3-4 key insights, main takeaway.
 
-### Key Takeaways
+### Key Takeaways / 核心要点
 3-5 bullet points of the most actionable things to know today.
 
-Write in bilingual format (中英双语): for each section, write the English version first, immediately followed by the Chinese translation. Interleave them naturally section by section, not as a full English block then full Chinese block. Be concise and direct. Total: 600-900 words. Format in clean Markdown.`;
+Be concise and direct. Total ~800-1200 words combined (EN + ZH). Format in clean Markdown.`;
 }
 
 async function generateDigest(feedX, feedPodcasts) {
   const response = await client.chat.completions.create({
     model: 'deepseek-chat',
-    messages: [{ role: 'user', content: buildPrompt(feedX, feedPodcasts) }],
-    max_tokens: 2048,
-    temperature: 0.7,
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a bilingual AI news curator. You ALWAYS produce bilingual output: every paragraph in English is immediately followed by its Chinese translation. Output that contains only English (or only Chinese) is invalid and unacceptable. 你必须输出中英双语，每段英文后紧跟中文翻译。',
+      },
+      { role: 'user', content: buildPrompt(feedX, feedPodcasts) },
+    ],
+    max_tokens: 4096,
+    temperature: 0.5,
   });
   return response.choices[0].message.content;
 }
