@@ -207,15 +207,17 @@ function buildEmailHTML(digestMarkdown, feedX, feedPodcasts) {
 
 // ─── Send Email ───────────────────────────────────────────────────────────────
 
-async function sendEmail(subject, html) {
-  const transporter = nodemailer.createTransport({
+function createTransporter() {
+  return nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_APP_PASSWORD,
     },
   });
+}
 
+async function sendEmail(transporter, subject, html) {
   await transporter.sendMail({
     from: `AI Digest <${process.env.GMAIL_USER}>`,
     to: RECIPIENT,
@@ -226,8 +228,18 @@ async function sendEmail(subject, html) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
+function requireEnv() {
+  const missing = ['DEEPSEEK_API_KEY', 'GMAIL_USER', 'GMAIL_APP_PASSWORD']
+    .filter(k => !process.env[k] || !process.env[k].trim());
+  if (missing.length) {
+    throw new Error(`Missing required environment variable(s): ${missing.join(', ')}`);
+  }
+}
+
 async function main() {
   console.log(`[${new Date().toISOString()}] Starting AI digest...`);
+
+  requireEnv();
 
   const [feedX, feedPodcasts] = await Promise.all([
     fetchJSON(FEED_X_URL),
@@ -240,6 +252,11 @@ async function main() {
     return;
   }
 
+  // Verify email credentials BEFORE the (paid) DeepSeek call, so bad creds fail fast.
+  const transporter = createTransporter();
+  console.log('Verifying email credentials...');
+  await transporter.verify();
+
   console.log('Generating digest with DeepSeek...');
   const digestMarkdown = await generateDigest(feedX, feedPodcasts);
 
@@ -251,11 +268,14 @@ async function main() {
   });
 
   console.log('Sending email...');
-  await sendEmail(`AI Daily Digest — ${dateLabel}`, html);
+  await sendEmail(transporter, `AI Daily Digest — ${dateLabel}`, html);
   console.log(`✓ Digest sent to ${RECIPIENT}`);
 }
 
 main().catch(err => {
   console.error('✗ Error:', err.message);
+  if (/535|BadCredentials|Invalid login/i.test(err.message || '')) {
+    console.error('→ Gmail 应用密码被拒。去 https://myaccount.google.com/apppasswords 重生，并更新 GMAIL_APP_PASSWORD Secret。');
+  }
   process.exit(1);
 });
