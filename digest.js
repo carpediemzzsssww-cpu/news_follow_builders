@@ -10,6 +10,8 @@ const OpenAI = require('openai');
 const client = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY,
   baseURL: 'https://api.deepseek.com/v1',
+  timeout: 180000,
+  maxRetries: 3,
 });
 
 const RECIPIENT = 'carpediemzzsssww@gmail.com';
@@ -99,7 +101,7 @@ Be concise and direct. Total ~800-1200 words combined (EN + ZH). Format in clean
 }
 
 async function generateDigest(feedX, feedPodcasts) {
-  const response = await client.chat.completions.create({
+  const stream = await client.chat.completions.create({
     model: 'deepseek-chat',
     messages: [
       {
@@ -110,8 +112,47 @@ async function generateDigest(feedX, feedPodcasts) {
     ],
     max_tokens: 4096,
     temperature: 0.5,
+    stream: true,
   });
-  return response.choices[0].message.content;
+
+  let content = '';
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content;
+    if (delta) content += delta;
+  }
+  if (!content.trim()) throw new Error('DeepSeek returned empty content');
+  return content;
+}
+
+function buildFallbackMarkdown(feedX, feedPodcasts) {
+  const lines = [
+    '### ⚠️ AI Summary Unavailable / AI 摘要暂不可用',
+    '',
+    'The DeepSeek API failed to respond. This email contains raw source data only.',
+    'DeepSeek 接口调用失败，本邮件仅包含今日原始数据源。',
+    '',
+  ];
+
+  if (feedX.x.length) {
+    lines.push('### Builder Tweets / 今日推文', '');
+    for (const b of feedX.x) {
+      lines.push(`**${b.name}** (@${b.handle})`);
+      for (const t of b.tweets) {
+        const preview = t.text.length > 200 ? t.text.slice(0, 200) + '…' : t.text;
+        lines.push(`- ${preview} (${t.likes}❤️ ${t.retweets}🔁) [link](${t.url})`);
+      }
+      lines.push('');
+    }
+  }
+
+  if (feedPodcasts.podcasts.length) {
+    lines.push('### Podcasts / 播客', '');
+    for (const ep of feedPodcasts.podcasts) {
+      lines.push(`- **${ep.name}** — [${ep.title}](${ep.url})`);
+    }
+  }
+
+  return lines.join('\n');
 }
 
 // ─── Email Formatting ─────────────────────────────────────────────────────────
@@ -257,8 +298,17 @@ async function main() {
   console.log('Verifying email credentials...');
   await transporter.verify();
 
-  console.log('Generating digest with DeepSeek...');
-  const digestMarkdown = await generateDigest(feedX, feedPodcasts);
+  let digestMarkdown;
+  let subjectPrefix = 'AI Daily Digest';
+  try {
+    console.log('Generating digest with DeepSeek...');
+    digestMarkdown = await generateDigest(feedX, feedPodcasts);
+  } catch (err) {
+    console.error(`✗ DeepSeek failed after retries: ${err.message}`);
+    console.log('Falling back to raw source digest...');
+    digestMarkdown = buildFallbackMarkdown(feedX, feedPodcasts);
+    subjectPrefix = 'AI Daily Digest (RAW)';
+  }
 
   const html = buildEmailHTML(digestMarkdown, feedX, feedPodcasts);
 
@@ -268,7 +318,7 @@ async function main() {
   });
 
   console.log('Sending email...');
-  await sendEmail(transporter, `AI Daily Digest — ${dateLabel}`, html);
+  await sendEmail(transporter, `${subjectPrefix} — ${dateLabel}`, html);
   console.log(`✓ Digest sent to ${RECIPIENT}`);
 }
 
